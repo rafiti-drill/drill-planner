@@ -12,6 +12,6 @@
     "express": "^4.18.2",
     "firebase-admin": "^12.0.0",
     "node-cron": "^3.0.3",
-    "pawnote": "^6.0.0"
+    "pawnote": "^1.6.2"
   }
 }
