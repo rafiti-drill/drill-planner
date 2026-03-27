@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(npx create-vite@latest . --template react)",
+      "Bash(printf 'y\\\\n')",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(firebase login:*)",
+      "Bash(firebase projects:list)",
+      "Bash(node -e \":*)",
+      "Bash(firebase deploy:*)",
+      "Bash(find /c/Users/Rectorat06/DrillPlanner -name *.rules -o -name firestore*)"
+    ]
+  }
+}

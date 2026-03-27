@@ -1,0 +1,17 @@
+# Dépendances
+node_modules/
+backend/node_modules/
+
+# Build
+dist/
+
+# Variables d'environnement — NE JAMAIS COMMITTER
+.env
+backend/.env
+
+# Clé Firebase — NE JAMAIS COMMITTER
+backend/serviceAccount.json
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,17 @@
+{
+  "name": "drill-planner-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Backend Drill Planner — intégration Pronote",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "firebase-admin": "^12.0.0",
+    "node-cron": "^3.0.3",
+    "pawnote": "^6.0.0"
+  }
+}

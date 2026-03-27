@@ -1,0 +1,224 @@
+/* ── Login Page — Thème Gurren Lagann ─────────────────────── */
+
+.login-bg {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg, #0a0a0f);
+  padding: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Fond animé — spirale subtile */
+.login-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 20% 30%, rgba(0, 255, 136, 0.04) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 60% at 80% 70%, rgba(220, 38, 38, 0.05) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Carte centrale */
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--color-surface, #12121a);
+  border: 1px solid var(--color-border, rgba(0, 255, 136, 0.15));
+  border-radius: 16px;
+  padding: 2.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  box-shadow:
+    0 0 40px rgba(0, 255, 136, 0.06),
+    0 4px 24px rgba(0, 0, 0, 0.6);
+  position: relative;
+  z-index: 1;
+}
+
+/* Trait supérieur coloré */
+.login-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--color-primary, #00ff88), transparent);
+  border-radius: 16px 16px 0 0;
+}
+
+/* ── Logo ── */
+.login-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.login-logo-icon {
+  font-size: 1.8rem;
+  color: var(--color-primary, #00ff88);
+  filter: drop-shadow(0 0 8px rgba(0, 255, 136, 0.6));
+}
+
+.login-logo-text {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--color-text, #e8e8f0);
+  text-transform: uppercase;
+}
+
+/* ── Citation ── */
+.login-quote {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.85rem;
+  color: var(--color-text-muted, #6b7280);
+  text-align: center;
+  font-style: italic;
+  line-height: 1.5;
+  border-left: 2px solid var(--color-primary, #00ff88);
+  padding-left: 0.75rem;
+  margin: 0;
+}
+
+/* ── Formulaire ── */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.login-label {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted, #6b7280);
+}
+
+.login-input {
+  background: var(--color-bg, #0a0a0f);
+  border: 1px solid var(--color-border, rgba(0, 255, 136, 0.2));
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1rem;
+  color: var(--color-text, #e8e8f0);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.login-input:focus {
+  border-color: var(--color-primary, #00ff88);
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.12);
+}
+
+.login-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.login-input::placeholder {
+  color: rgba(107, 114, 128, 0.6);
+}
+
+/* ── Erreur ── */
+.login-error {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.85rem;
+  color: var(--color-danger, #dc2626);
+  background: rgba(220, 38, 38, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  margin: 0;
+}
+
+/* ── Boutons ── */
+.login-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.25rem;
+}
+
+.login-btn {
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: 8px;
+  font-family: 'Orbitron', monospace;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.login-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.login-btn-primary {
+  background: var(--color-primary, #00ff88);
+  color: #0a0a0f;
+}
+
+.login-btn-primary:hover:not(:disabled) {
+  background: #00e077;
+  box-shadow: 0 0 16px rgba(0, 255, 136, 0.3);
+  transform: translateY(-1px);
+}
+
+.login-btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.login-btn-secondary {
+  background: transparent;
+  color: var(--color-text-muted, #6b7280);
+  border: 1px solid var(--color-border, rgba(0, 255, 136, 0.15));
+}
+
+.login-btn-secondary:hover:not(:disabled) {
+  color: var(--color-primary, #00ff88);
+  border-color: var(--color-primary, #00ff88);
+  background: rgba(0, 255, 136, 0.05);
+}
+
+/* ── Hint bas de page ── */
+.login-hint {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #4b5563);
+  text-align: center;
+  margin: 0;
+}
+
+/* ── Responsive mobile ── */
+@media (max-width: 480px) {
+  .login-card {
+    padding: 2rem 1.25rem;
+  }
+  .login-logo-text {
+    font-size: 1.1rem;
+  }
+}
