@@ -59,35 +59,101 @@ app.use(express.json())
 const MOTS_AVANCE = ['dossier', 'exposé', 'oral', 'dm', 'devoir maison', 'recherche', 'fiche', 'présentation']
 
 // ── POST /api/pronote/login ──────────────────────────────────
-// Body: { url, username, password, userId }
+// Méthode QR code (ENT/Atrium) :
+//   Body: { loginMethod: 'qr', qrData: { url, login, jeton }, pin, userId }
+// Méthode directe (sans ENT) :
+//   Body: { loginMethod: 'direct', url, username, password, userId }
 // Retourne: { success, studentName }
 app.post('/api/pronote/login', async (req, res) => {
-  const { url, username, password, userId } = req.body
+  const { loginMethod = 'direct', userId } = req.body
 
-  if (!url || !username || !password || !userId) {
-    return res.status(400).json({
-      success: false,
-      error: 'Paramètres manquants. Requis : url, username, password, userId'
-    })
+  if (!userId) {
+    return res.status(400).json({ success: false, error: 'userId manquant' })
   }
 
   try {
-    const client = await connectToPronote(url, username, password)
-    const studentName = extractStudentName(client, username)
+    let sessionData, studentName
 
-    // Sauvegarder les infos de connexion dans Firestore
-    // ⚠️  En production réelle, stocker un token de session plutôt que le mot de passe.
-    // Pronote n'expose pas de token OAuth — on stocke les credentials de façon simple ici.
-    await db.collection('pronote').doc(userId).set({
-      url: normalizeUrl(url),
-      username,
-      password,
-      studentName,
-      connectedAt: new Date().toISOString(),
-      lastSync: null,
-    })
+    if (loginMethod === 'qr') {
+      // ── Connexion via QR Code (pour ENT Atrium et autres) ──────
+      const { qrData, pin } = req.body
+      if (!qrData || !pin) {
+        return res.status(400).json({
+          success: false,
+          error: 'qrData et pin requis pour la connexion via QR code'
+        })
+      }
 
-    console.log(`✅ Connexion Pronote réussie pour userId=${userId} (${studentName})`)
+      const { createSessionHandle, loginQrCode, account } = await import('pawnote')
+      const handle = createSessionHandle()
+
+      await loginQrCode(handle, {
+        qr: {
+          url: qrData.url,
+          login: qrData.login,
+          jeton: qrData.jeton,
+        },
+        pin: String(pin),
+      })
+
+      // Récupérer les infos du compte
+      const accountInfo = await account(handle)
+      studentName = accountInfo?.studentName
+        || handle.user?.name
+        || handle.information?.studentName
+        || qrData.login
+
+      // Stocker le token pour la reconnexion automatique (sans QR)
+      sessionData = {
+        loginMethod: 'token',
+        url: handle.information?.url || qrData.url,
+        username: handle.user?.username || qrData.login,
+        token: handle.user?.token || '',
+        deviceUUID: handle.user?.deviceUUID || '',
+        kind: 6, // AccountKind.STUDENT
+        studentName,
+        connectedAt: new Date().toISOString(),
+        lastSync: null,
+      }
+
+    } else {
+      // ── Connexion directe (sans ENT) ───────────────────────────
+      const { url, username, password } = req.body
+      if (!url || !username || !password) {
+        return res.status(400).json({
+          success: false,
+          error: 'url, username et password requis pour la connexion directe'
+        })
+      }
+
+      const { createSessionHandle, loginCredentials, account } = await import('pawnote')
+      const handle = createSessionHandle()
+
+      await loginCredentials(handle, {
+        url: normalizeUrl(url),
+        username,
+        password,
+        kind: 6, // AccountKind.STUDENT
+      })
+
+      const accountInfo = await account(handle)
+      studentName = accountInfo?.studentName || handle.user?.name || username
+
+      sessionData = {
+        loginMethod: 'token',
+        url: normalizeUrl(url),
+        username,
+        token: handle.user?.token || '',
+        deviceUUID: handle.user?.deviceUUID || '',
+        kind: 6,
+        studentName,
+        connectedAt: new Date().toISOString(),
+        lastSync: null,
+      }
+    }
+
+    await db.collection('pronote').doc(userId).set(sessionData)
+    console.log(`✅ Connexion Pronote OK pour userId=${userId} (${studentName}) via ${loginMethod}`)
     res.json({ success: true, studentName })
 
   } catch (err) {
@@ -121,57 +187,36 @@ app.get('/api/pronote/sync', async (req, res) => {
   }
 })
 
-// ── Connexion pawnote ────────────────────────────────────────
-async function connectToPronote(url, username, password) {
-  // Import dynamique — pawnote est un module ESM
-  const pawnote = await import('pawnote')
+// ── Reconnexion pawnote via token stocké ─────────────────────
+async function reconnectPronote(sessionData) {
+  const { createSessionHandle, loginToken } = await import('pawnote')
+  const handle = createSessionHandle()
 
-  // pawnote v6 expose createClientFromCredentials en export nommé ou default
-  const createClient = pawnote.createClientFromCredentials
-    || pawnote.default?.createClientFromCredentials
-
-  if (typeof createClient !== 'function') {
-    // Essayer l'API pawnote v5 (Client class)
-    const Client = pawnote.Client || pawnote.default?.Client
-    if (Client) {
-      const client = new Client()
-      await client.loginFromUsernamePassword({
-        url: normalizeUrl(url),
-        username,
-        password,
-      })
-      return client
-    }
-    throw new Error(
-      'API pawnote non reconnue. Vérifiez la version installée (npm list pawnote).'
-    )
-  }
-
-  // Détection du type de CAS (aucun par défaut, ajustable selon l'établissement)
-  const kindValue = pawnote.StudentAccountKind?.Student
-    ?? pawnote.default?.StudentAccountKind?.Student
-    ?? 0
-
-  const client = await createClient({
-    url: normalizeUrl(url),
-    username,
-    password,
-    kind: kindValue,
+  await loginToken(handle, {
+    url: sessionData.url,
+    username: sessionData.username,
+    token: sessionData.token,
+    deviceUUID: sessionData.deviceUUID,
+    kind: sessionData.kind ?? 6,
   })
 
-  return client
+  return handle
 }
 
 // ── Fonction principale de synchronisation ───────────────────
 async function syncPronote(userId) {
-  // Lire les credentials depuis Firestore
   const sessionSnap = await db.collection('pronote').doc(userId).get()
   if (!sessionSnap.exists) {
     throw new Error('Aucune session Pronote trouvée. Connectez-vous d\'abord depuis la page Pronote.')
   }
 
-  const { url, username, password } = sessionSnap.data()
-  const client = await connectToPronote(url, username, password)
+  const sessionData = sessionSnap.data()
+
+  if (!sessionData.token) {
+    throw new Error('Token de session manquant. Reconnectez-vous depuis la page Pronote.')
+  }
+
+  const handle = await reconnectPronote(sessionData)
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -183,7 +228,7 @@ async function syncPronote(userId) {
 
   // ── Synchronisation des devoirs ───────────────────────────
   try {
-    const homeworkList = await fetchHomework(client, today, in30Days)
+    const homeworkList = await fetchHomework(handle, today, in30Days)
 
     // Supprimer les anciens devoirs Pronote pour éviter les doublons
     const existingDevoirs = await db.collection(`users/${userId}/devoirs`).get()
@@ -221,7 +266,7 @@ async function syncPronote(userId) {
 
   // ── Synchronisation des contrôles/évaluations ────────────
   try {
-    const evaluations = await fetchEvaluations(client, today, in30Days)
+    const evaluations = await fetchEvaluations(handle, today, in30Days)
 
     // Supprimer les anciens contrôles Pronote
     const existingControles = await db.collection(`users/${userId}/controles`).where('source', '==', 'pronote').get()
@@ -268,53 +313,41 @@ async function syncPronote(userId) {
   return { devoirs: devoirsCount, controles: controlesCount }
 }
 
-// ── Récupération des devoirs (adaptatif selon l'API pawnote) ─
-async function fetchHomework(client, from, to) {
-  // Essayer différentes méthodes selon la version de pawnote
-  if (typeof client.getHomeworkForInterval === 'function') {
-    return await client.getHomeworkForInterval(from, to) || []
+// ── Récupération des devoirs — pawnote v1.6.2 ────────────────
+async function fetchHomework(handle, from, to) {
+  const { assignmentsFromIntervals } = await import('pawnote')
+
+  try {
+    // assignmentsFromIntervals attend un tableau d'intervalles [{ from, to }]
+    const result = await assignmentsFromIntervals(handle, [{ from, to }])
+    return result || []
+  } catch (err) {
+    console.warn('[Pronote] assignmentsFromIntervals échoué:', err.message)
+    return []
   }
-  if (typeof client.getHomework === 'function') {
-    return await client.getHomework(from, to) || []
-  }
-  if (typeof client.homework === 'function') {
-    return await client.homework() || []
-  }
-  console.warn('[Pronote] Aucune méthode de récupération des devoirs trouvée dans l\'API pawnote.')
-  return []
 }
 
-// ── Récupération des contrôles (adaptatif selon l'API pawnote)
-async function fetchEvaluations(client, from, to) {
-  // Les évaluations peuvent être dans différents endroits selon la version pawnote
-  if (typeof client.getEvaluations === 'function') {
-    return await client.getEvaluations() || []
-  }
+// ── Récupération des contrôles/évaluations — pawnote v1.6.2 ──
+async function fetchEvaluations(handle, from, to) {
+  const { evaluations } = await import('pawnote')
 
-  // Certaines versions les exposent dans le cahier de textes
-  if (typeof client.getTimetableForInterval === 'function') {
-    const timetable = await client.getTimetableForInterval(from, to) || []
-    return timetable.filter(item =>
-      item.isExam
-      || item.type === 'evaluation'
-      || item.type === 'exam'
-      || String(item.title || '').toLowerCase().includes('contrôle')
-      || String(item.title || '').toLowerCase().includes('devoir')
-      || String(item.title || '').toLowerCase().includes('ds ')
-    )
-  }
+  try {
+    const result = await evaluations(handle)
+    if (!result) return []
 
-  // Fallback : notes/bulletins (peut contenir la liste des évaluations)
-  if (typeof client.getGradesOverview === 'function') {
-    const data = await client.getGradesOverview()
-    return (data?.evaluations || data?.grades || []).filter(e => {
-      const d = toDateStr(e.date)
-      return d >= from.toISOString().split('T')[0] && d <= to.toISOString().split('T')[0]
+    const fromStr = from.toISOString().split('T')[0]
+    const toStr = to.toISOString().split('T')[0]
+
+    // Filtrer les évaluations dans la plage de dates
+    const allEvals = Array.isArray(result) ? result : (result.evaluations || [])
+    return allEvals.filter(e => {
+      const d = toDateStr(e.date || e.startDate)
+      return d >= fromStr && d <= toStr
     })
+  } catch (err) {
+    console.warn('[Pronote] evaluations() échoué:', err.message)
+    return []
   }
-
-  console.warn('[Pronote] Aucune méthode de récupération des contrôles trouvée dans l\'API pawnote.')
-  return []
 }
 
 // ── Utilitaires ──────────────────────────────────────────────

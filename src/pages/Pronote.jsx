@@ -13,7 +13,8 @@ export default function Pronote({ store, userId }) {
   const { data, updateControle, deleteControle, toggleDevoir, deleteDevoir } = store
 
   // ── Formulaire de connexion ──────────────────────────────
-  const [form, setForm] = useState({ url: '', username: '', password: '' })
+  const [loginMethod, setLoginMethod] = useState('qr') // 'qr' | 'direct'
+  const [form, setForm] = useState({ url: '', username: '', password: '', qrJson: '', pin: '' })
   const [connecting, setConnecting] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState('')
@@ -39,16 +40,33 @@ export default function Pronote({ store, userId }) {
     setError('')
     setConnecting(true)
     try {
+      let body
+
+      if (loginMethod === 'qr') {
+        let qrData
+        try {
+          qrData = JSON.parse(form.qrJson)
+        } catch {
+          throw new Error('Le JSON du QR code est invalide. Vérifie le format.')
+        }
+        if (!qrData.url || !qrData.login || !qrData.jeton) {
+          throw new Error('Le QR code doit contenir : url, login, jeton')
+        }
+        body = { loginMethod: 'qr', qrData, pin: form.pin, userId }
+      } else {
+        body = { loginMethod: 'direct', url: form.url, username: form.username, password: form.password, userId }
+      }
+
       const res = await fetch(`${BACKEND_URL}/api/pronote/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, userId }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (!data.success) throw new Error(data.error)
-      setForm(f => ({ ...f, password: '' }))
+      setForm(f => ({ ...f, password: '', pin: '' }))
     } catch (err) {
-      setError(err.message || 'Erreur de connexion au backend. Vérifiez que le serveur tourne sur le port 3001.')
+      setError(err.message || 'Erreur de connexion. Vérifiez que le backend Render est actif.')
     } finally {
       setConnecting(false)
     }
@@ -121,44 +139,101 @@ export default function Pronote({ store, userId }) {
           </div>
         )}
 
+        {/* Onglets de méthode */}
+        <div className="pronote-method-tabs">
+          <button
+            className={`pronote-method-tab ${loginMethod === 'qr' ? 'active' : ''}`}
+            onClick={() => setLoginMethod('qr')}
+            type="button"
+          >
+            📱 Via ENT / Atrium
+          </button>
+          <button
+            className={`pronote-method-tab ${loginMethod === 'direct' ? 'active' : ''}`}
+            onClick={() => setLoginMethod('direct')}
+            type="button"
+          >
+            🔑 Connexion directe
+          </button>
+        </div>
+
         <form className="pronote-form" onSubmit={handleLogin}>
-          <div className="pronote-form-fields">
-            <div className="pronote-field">
-              <label className="pronote-label">URL Pronote</label>
-              <input
-                className="pronote-input"
-                type="url"
-                placeholder="https://xxx.index-education.net/pronote/"
-                value={form.url}
-                onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
-                required
-              />
-            </div>
-            <div className="pronote-field-row">
+          {loginMethod === 'qr' ? (
+            <>
+              <div className="pronote-qr-instructions">
+                <strong>Étapes :</strong>
+                <ol>
+                  <li>Ouvre Pronote via Atrium normalement</li>
+                  <li>Va dans <em>Mon compte → Paramètres de connexion → Générer un QR code</em></li>
+                  <li>Définis un code PIN à 4 chiffres</li>
+                  <li>Lis le QR code avec une app (ex: Google Lens) — copie le texte JSON affiché</li>
+                  <li>Colle-le ci-dessous</li>
+                </ol>
+              </div>
               <div className="pronote-field">
-                <label className="pronote-label">Identifiant</label>
-                <input
-                  className="pronote-input"
-                  type="text"
-                  placeholder="Identifiant Pronote"
-                  value={form.username}
-                  onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+                <label className="pronote-label">Contenu du QR code (JSON)</label>
+                <textarea
+                  className="pronote-input pronote-textarea"
+                  placeholder={'{"url":"https://...","login":"...","jeton":"..."}'}
+                  value={form.qrJson}
+                  onChange={e => setForm(f => ({ ...f, qrJson: e.target.value }))}
+                  rows={3}
                   required
                 />
               </div>
               <div className="pronote-field">
-                <label className="pronote-label">Mot de passe</label>
+                <label className="pronote-label">Code PIN (4 chiffres)</label>
                 <input
                   className="pronote-input"
                   type="password"
-                  placeholder="••••••••"
-                  value={form.password}
-                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder="••••"
+                  value={form.pin}
+                  onChange={e => setForm(f => ({ ...f, pin: e.target.value.replace(/\D/g, '') }))}
                   required
                 />
               </div>
-            </div>
-          </div>
+            </>
+          ) : (
+            <>
+              <div className="pronote-field">
+                <label className="pronote-label">URL Pronote</label>
+                <input
+                  className="pronote-input"
+                  type="url"
+                  placeholder="https://xxx.index-education.net/pronote/"
+                  value={form.url}
+                  onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="pronote-field-row">
+                <div className="pronote-field">
+                  <label className="pronote-label">Identifiant</label>
+                  <input
+                    className="pronote-input"
+                    type="text"
+                    placeholder="Identifiant Pronote"
+                    value={form.username}
+                    onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="pronote-field">
+                  <label className="pronote-label">Mot de passe</label>
+                  <input
+                    className="pronote-input"
+                    type="password"
+                    placeholder="••••••••"
+                    value={form.password}
+                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                    required
+                  />
+                </div>
+              </div>
+            </>
+          )}
 
           {error && <div className="pronote-error">⚠️ {error}</div>}
 
@@ -166,10 +241,6 @@ export default function Pronote({ store, userId }) {
             {connecting ? '⏳ Connexion…' : pronoteStatus ? '🔄 Reconnecter' : '🔌 Connecter à Pronote'}
           </Button>
         </form>
-
-        <p className="pronote-note">
-          ℹ️ Le backend doit tourner en local : <code>cd backend && npm start</code>
-        </p>
       </Card>
 
       {/* ── Contrôles détectés ───────────────────────────── */}
