@@ -12,15 +12,6 @@ export const INTENSITE_CONFIG = {
   5: { joursAvance: 14, sessionsParJour: 3, label: 'Exam / Bac blanc', hint: 'Planning commence 14 jours avant' },
 }
 
-/**
- * Calcule le nombre maximum de sessions pour un jour donné
- * selon les disponibilités configurées.
- */
-function getMaxForDay(dayOfWeek, availability) {
-  const avail = availability || DEFAULT_AVAILABILITY
-  const minutes = avail[dayOfWeek] ?? avail[String(dayOfWeek)] ?? 0
-  return Math.min(ABSOLUTE_MAX_PER_DAY, Math.floor(minutes / SESSION_DURATION))
-}
 
 /**
  * Génère des sessions de révision selon la difficulté, la date du contrôle

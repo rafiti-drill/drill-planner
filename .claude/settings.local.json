@@ -10,7 +10,21 @@
       "Bash(firebase projects:list)",
       "Bash(node -e \":*)",
       "Bash(firebase deploy:*)",
-      "Bash(find /c/Users/Rectorat06/DrillPlanner -name *.rules -o -name firestore*)"
+      "Bash(find /c/Users/Rectorat06/DrillPlanner -name *.rules -o -name firestore*)",
+      "Bash(git config:*)",
+      "Bash(npm show:*)",
+      "Bash(node:*)",
+      "Bash(npm search:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.literate.ink)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:js.pawnote.docs.literate.ink)",
+      "WebFetch(domain:pronotepy.readthedocs.io)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(npx firebase:*)",
+      "Bash(python3:*)"
     ]
   }
 }

@@ -171,6 +171,13 @@
   padding: 0.6rem 0.9rem;
 }
 
+.pronote-error--login {
+  font-size: 0.9rem;
+  padding: 0.8rem 1rem;
+  border-left: 3px solid #ef4444;
+  word-break: break-word;
+}
+
 .pronote-note {
   margin-top: 0.75rem;
   font-size: 0.78rem;
@@ -441,6 +448,301 @@
   font-family: 'Rajdhani', sans-serif;
   font-size: 0.9rem;
   padding: 1.5rem 0;
+}
+
+/* ── Zone scan ────────────────────────────────────────────── */
+.pronote-scan-zone {
+  display: flex;
+  justify-content: center;
+}
+
+.pronote-scan-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 1.5rem 1rem;
+  border-radius: 10px;
+  border: 2px dashed var(--color-primary);
+  background: rgba(var(--color-primary-rgb, 0,255,65), 0.06);
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.pronote-scan-btn:hover {
+  background: rgba(var(--color-primary-rgb, 0,255,65), 0.12);
+}
+
+.pronote-scan-btn-icon { font-size: 2rem; }
+
+.pronote-scan-btn-text {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  letter-spacing: 0.05em;
+}
+
+.pronote-scan-btn-sub {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+/* ── Zone JSON manuelle ───────────────────────────────────── */
+.pronote-json-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.pronote-json-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--color-text-muted);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.pronote-json-divider::before,
+.pronote-json-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.pronote-json-textarea {
+  min-height: 90px;
+  resize: vertical;
+  font-family: monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.pronote-json-error {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.82rem;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 6px;
+  padding: 0.4rem 0.7rem;
+}
+
+.pronote-json-btn {
+  align-self: flex-start;
+  padding: 0.5rem 1.1rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-primary);
+  background: rgba(var(--color-primary-rgb, 0,255,65), 0.1);
+  color: var(--color-primary);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+  letter-spacing: 0.03em;
+}
+.pronote-json-btn:hover:not(:disabled) {
+  background: rgba(var(--color-primary-rgb, 0,255,65), 0.2);
+}
+.pronote-json-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── QR scanné avec succès ────────────────────────────────── */
+.pronote-scanned-success {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.pronote-scanned-icon { font-size: 1.4rem; }
+
+.pronote-scanned-info { flex: 1; }
+
+.pronote-scanned-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent-green);
+  letter-spacing: 0.05em;
+}
+
+.pronote-scanned-login {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+.pronote-scanned-rescan {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+.pronote-scanned-rescan:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+/* ── PIN ──────────────────────────────────────────────────── */
+.pronote-pin-input {
+  font-size: 1.5rem;
+  letter-spacing: 0.4em;
+  text-align: center;
+}
+
+.pronote-pin-hint {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+/* ── Overlay scanner QR ───────────────────────────────────── */
+.qr-scanner-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.qr-scanner-box {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 380px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.qr-scanner-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.qr-scanner-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  letter-spacing: 0.06em;
+}
+
+.qr-scanner-close {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  transition: color 0.2s;
+}
+.qr-scanner-close:hover { color: #ef4444; }
+
+/* ── Viewport vidéo ──────────────────────────────────────── */
+.qr-scanner-viewport {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  background: #000;
+  overflow: hidden;
+}
+
+/* html5-qrcode injecte une <video> et un <canvas> ici */
+.qr-reader-element {
+  width: 100% !important;
+  height: 100% !important;
+}
+.qr-reader-element video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+}
+/* Masquer les éléments UI internes de html5-qrcode */
+.qr-reader-element > img,
+.qr-reader-element > div:not(:has(video)) {
+  display: none !important;
+}
+
+.qr-scanner-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  background: rgba(0, 0, 0, 0.6);
+}
+
+/* ── Coins du cadre de scan ──────────────────────────────── */
+.qr-scanner-frame {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.qr-frame-corner {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-color: var(--color-primary);
+  border-style: solid;
+}
+
+.qr-frame-corner--tl { top: 20%;  left: 15%;  border-width: 3px 0 0 3px; }
+.qr-frame-corner--tr { top: 20%;  right: 15%; border-width: 3px 3px 0 0; }
+.qr-frame-corner--bl { bottom: 20%; left: 15%;  border-width: 0 0 3px 3px; }
+.qr-frame-corner--br { bottom: 20%; right: 15%; border-width: 0 3px 3px 0; }
+
+.qr-scanner-error {
+  padding: 0.65rem 1rem;
+  background: rgba(239, 68, 68, 0.12);
+  border-top: 1px solid rgba(239, 68, 68, 0.25);
+  color: #ef4444;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.82rem;
+}
+
+.qr-scanner-hint {
+  padding: 0.8rem 1rem;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  line-height: 1.6;
+  margin: 0;
+}
+.qr-scanner-hint em {
+  color: var(--color-primary);
+  font-style: normal;
 }
 
 /* ── Responsive ───────────────────────────────────────────── */

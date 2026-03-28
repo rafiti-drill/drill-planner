@@ -170,8 +170,17 @@ app.post('/api/pronote/login', async (req, res) => {
     res.json({ success: true, studentName })
 
   } catch (err) {
-    console.error(`[Pronote] Erreur de connexion [${err.name}]: ${err.message}`)
-    if (err.stack) console.error('[Pronote] Stack:', err.stack)
+    const ts = new Date().toISOString()
+    console.error(`\n━━━━━ [Pronote] ERREUR CONNEXION ${ts} ━━━━━`)
+    console.error(`  userId    : ${userId}`)
+    console.error(`  méthode   : ${loginMethod}`)
+    console.error(`  type      : ${err.name}`)
+    console.error(`  message   : ${err.message}`)
+    if (err.cause)  console.error(`  cause     : ${JSON.stringify(err.cause)}`)
+    if (err.data)   console.error(`  data      : ${JSON.stringify(err.data)}`)
+    if (err.code)   console.error(`  code      : ${err.code}`)
+    if (err.stack)  console.error(`  stack     :\n${err.stack}`)
+    console.error(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`)
     res.status(401).json({
       success: false,
       error: `[${err.name}] ${err.message}`
