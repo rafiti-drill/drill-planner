@@ -3,7 +3,7 @@ import { Html5Qrcode } from 'html5-qrcode'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import { db } from '../firebase'
-import { doc, onSnapshot } from 'firebase/firestore'
+import { doc, onSnapshot, deleteDoc } from 'firebase/firestore'
 import { INTENSITE_CONFIG, daysUntil, formatDate } from '../utils/scheduler'
 import './Pronote.css'
 
@@ -105,9 +105,11 @@ export default function Pronote({ store, userId }) {
   const [form, setForm] = useState({ url: '', username: '', password: '', pin: '' })
   const [connecting, setConnecting] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [disconnecting, setDisconnecting] = useState(false)
   const [error, setError] = useState('')
   const [jsonText, setJsonText] = useState('')
   const [jsonError, setJsonError] = useState('')
+  const [showForm, setShowForm] = useState(false)
   const errorRef = useRef(null)
 
   // ── Statut Firestore ─────────────────────────────────────
@@ -116,7 +118,9 @@ export default function Pronote({ store, userId }) {
   useEffect(() => {
     if (!userId) return
     const unsub = onSnapshot(doc(db, 'pronote', userId), snap => {
-      setPronoteStatus(snap.exists() ? snap.data() : null)
+      const data = snap.exists() ? snap.data() : null
+      setPronoteStatus(data)
+      if (data) setShowForm(false)
     })
     return () => unsub()
   }, [userId])
@@ -206,6 +210,23 @@ export default function Pronote({ store, userId }) {
     }
   }
 
+  // ── Déconnexion ─────────────────────────────────────────
+  async function handleDisconnect() {
+    if (!userId) return
+    setDisconnecting(true)
+    setError('')
+    try {
+      await deleteDoc(doc(db, 'pronote', userId))
+      setShowForm(false)
+      setScannedData(null)
+      setForm({ url: '', username: '', password: '', pin: '' })
+    } catch (err) {
+      setError('Erreur lors de la déconnexion : ' + err.message)
+    } finally {
+      setDisconnecting(false)
+    }
+  }
+
   // ── Sync manuelle ────────────────────────────────────────
   async function handleSync() {
     setError('')
@@ -251,29 +272,55 @@ export default function Pronote({ store, userId }) {
       <Card className="pronote-card">
         <h2 className="pronote-section-title">Connexion</h2>
 
-        {/* Statut */}
-        <div className="pronote-status-row">
-          {pronoteStatus ? (
-            <div className="pronote-status pronote-status--ok">
-              ✅ Connecté en tant que <strong>{pronoteStatus.studentName}</strong>
+        {/* ── État connecté ── */}
+        {pronoteStatus && !showForm ? (
+          <>
+            <div className="pronote-connected-banner">
+              <div className="pronote-connected-info">
+                <span className="pronote-connected-badge">✅ Connecté</span>
+                <span className="pronote-connected-name">{pronoteStatus.studentName}</span>
+              </div>
+              {pronoteStatus.lastSync && (
+                <span className="pronote-lastsync">
+                  Dernière sync : {formatRelativeTime(pronoteStatus.lastSync)}
+                </span>
+              )}
             </div>
-          ) : (
-            <div className="pronote-status pronote-status--off">❌ Non connecté</div>
-          )}
-          {pronoteStatus?.lastSync && (
-            <span className="pronote-lastsync">
-              Dernière sync : {formatRelativeTime(pronoteStatus.lastSync)}
-            </span>
-          )}
-        </div>
 
-        {pronoteStatus && (
-          <div className="pronote-sync-row">
-            <Button onClick={handleSync} disabled={syncing} variant="primary">
-              {syncing ? '⏳ Synchronisation…' : '🔄 Synchroniser maintenant'}
-            </Button>
-          </div>
-        )}
+            <div className="pronote-connected-actions">
+              <Button onClick={handleSync} disabled={syncing || disconnecting} variant="primary">
+                {syncing ? '⏳ Synchronisation…' : '🔄 Synchroniser maintenant'}
+              </Button>
+              <button
+                type="button"
+                className="pronote-disconnect-btn"
+                onClick={handleDisconnect}
+                disabled={disconnecting || syncing}
+              >
+                {disconnecting ? '⏳…' : '🔌 Déconnecter'}
+              </button>
+            </div>
+
+            {error && <div ref={errorRef} className="pronote-error pronote-error--login">⚠️ {error}</div>}
+          </>
+        ) : (
+          <>
+            {/* Statut non connecté */}
+            {!pronoteStatus && (
+              <div className="pronote-status pronote-status--off" style={{ marginBottom: '1rem' }}>
+                ❌ Non connecté
+              </div>
+            )}
+
+            {/* ── Bouton "Reconnecter" si déjà connecté mais showForm=true ── */}
+            {pronoteStatus && showForm && (
+              <div className="pronote-reconnect-hint">
+                Actuellement connecté en tant que <strong>{pronoteStatus.studentName}</strong> —{' '}
+                <button type="button" className="pronote-link-btn" onClick={() => setShowForm(false)}>
+                  annuler
+                </button>
+              </div>
+            )}
 
         {/* Onglets */}
         <div className="pronote-method-tabs">
@@ -425,6 +472,8 @@ export default function Pronote({ store, userId }) {
             </Button>
           )}
         </form>
+          </>
+        )}
       </Card>
 
       {/* ── Contrôles détectés ───────────────────────────── */}

@@ -345,12 +345,12 @@ async function syncPronote(userId) {
 }
 
 // ── Récupération des devoirs — pawnote v1.6.2 ────────────────
+// Signature réelle : assignmentsFromIntervals(handle, from: Date, to: Date)
 async function fetchHomework(handle, from, to) {
   const { assignmentsFromIntervals } = await import('pawnote')
-
   try {
-    // assignmentsFromIntervals attend un tableau d'intervalles [{ from, to }]
-    const result = await assignmentsFromIntervals(handle, [{ from, to }])
+    const result = await assignmentsFromIntervals(handle, from, to)
+    console.log(`[Pronote] assignmentsFromIntervals: ${result?.length ?? 0} devoirs`)
     return result || []
   } catch (err) {
     console.warn('[Pronote] assignmentsFromIntervals échoué:', err.message)
@@ -359,24 +359,38 @@ async function fetchHomework(handle, from, to) {
 }
 
 // ── Récupération des contrôles/évaluations — pawnote v1.6.2 ──
+// Signature réelle : evaluations(handle, period: { id, kind, name })
+// La période est obligatoire — on prend la période courante de handle.instance.periods
 async function fetchEvaluations(handle, from, to) {
   const { evaluations } = await import('pawnote')
-
   try {
-    const result = await evaluations(handle)
+    // Trouver la période qui contient aujourd'hui, sinon prendre la plus récente
+    const periods = handle.instance?.periods || []
+    console.log(`[Pronote] Périodes disponibles: ${periods.map(p => p.name).join(', ')}`)
+    const today = new Date()
+    const currentPeriod = periods.find(p => p.startDate <= today && today <= p.endDate)
+      || periods[periods.length - 1]
+
+    if (!currentPeriod) {
+      console.warn('[Pronote] Aucune période trouvée dans handle.instance.periods')
+      return []
+    }
+    console.log(`[Pronote] Période utilisée pour évaluations: ${currentPeriod.name}`)
+
+    const result = await evaluations(handle, currentPeriod)
     if (!result) return []
 
     const fromStr = from.toISOString().split('T')[0]
-    const toStr = to.toISOString().split('T')[0]
-
-    // Filtrer les évaluations dans la plage de dates
-    const allEvals = Array.isArray(result) ? result : (result.evaluations || [])
-    return allEvals.filter(e => {
+    const toStr   = to.toISOString().split('T')[0]
+    const allEvals = Array.isArray(result) ? result : []
+    const filtered = allEvals.filter(e => {
       const d = toDateStr(e.date || e.startDate)
       return d >= fromStr && d <= toStr
     })
+    console.log(`[Pronote] evaluations: ${allEvals.length} total, ${filtered.length} dans la plage`)
+    return filtered
   } catch (err) {
-    console.warn('[Pronote] evaluations() échoué:', err.message)
+    console.warn('[Pronote] evaluations() échoué:', err.message, err.stack?.split('\n')[1])
     return []
   }
 }

@@ -67,6 +67,92 @@
   margin-bottom: 1.25rem;
 }
 
+/* ── Bannière connecté ────────────────────────────────────── */
+.pronote-connected-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 10px;
+  padding: 1rem 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.pronote-connected-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.pronote-connected-badge {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent-green);
+  letter-spacing: 0.05em;
+}
+
+.pronote-connected-name {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.pronote-connected-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.pronote-disconnect-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+.pronote-disconnect-btn:hover:not(:disabled) {
+  color: #ef4444;
+  border-color: #ef4444;
+}
+.pronote-disconnect-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pronote-reconnect-hint {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255,255,255,0.04);
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+}
+
+.pronote-link-btn {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
 /* ── Onglets méthode de connexion ────────────────────────── */
 .pronote-method-tabs {
   display: flex;
