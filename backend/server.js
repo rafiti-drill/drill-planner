@@ -56,8 +56,19 @@ const app = express()
 app.use(cors({ origin: '*' }))
 app.use(express.json())
 
-// ── Mots-clés indiquant un devoir long ───────────────────────
-const MOTS_AVANCE = ['dossier', 'exposé', 'oral', 'dm', 'devoir maison', 'recherche', 'fiche', 'présentation']
+// ── Classification des devoirs ────────────────────────────────
+const MOTS_CONTROLE = [
+  'contrôle', 'controle', 'ds', 'devoir surveillé', 'devoir surveille',
+  'évaluation', 'evaluation', 'eval', 'examen', 'bac blanc',
+  'interro', 'interrogation', 'qcm', 'test',
+  'exposé', 'expose', 'oral', 'présentation', 'presentation', 'soutenance',
+]
+
+const MOTS_IGNORER = [
+  'ne pas oublier', 'rappel', 'apporter', 'manuel',
+  'matériel', 'materiel', 'carnet', 'stylo', 'calculatrice',
+  'livre', 'fourniture',
+]
 
 // ── POST /api/pronote/login ──────────────────────────────────
 // Méthode QR code (ENT/Atrium) :
@@ -261,38 +272,81 @@ async function syncPronote(userId) {
   try {
     const homeworkList = await fetchHomework(handle, today, in30Days)
 
-    // Supprimer les anciens devoirs Pronote pour éviter les doublons
-    const existingDevoirs = await db.collection(`users/${userId}/devoirs`).get()
+    // Supprimer tous les anciens devoirs ET contrôles Pronote issus des devoirs
+    const [existingDevoirs, existingDevoirsAsControles] = await Promise.all([
+      db.collection(`users/${userId}/devoirs`).where('source', '==', 'pronote').get(),
+      db.collection(`users/${userId}/controles`).where('source', '==', 'pronote_hw').get(),
+    ])
     const deleteBatch = db.batch()
     existingDevoirs.docs.forEach(d => deleteBatch.delete(d.ref))
-    if (!existingDevoirs.empty) await deleteBatch.commit()
+    existingDevoirsAsControles.docs.forEach(d => deleteBatch.delete(d.ref))
+    if (!existingDevoirs.empty || !existingDevoirsAsControles.empty) await deleteBatch.commit()
 
-    // Insérer les nouveaux
-    const insertBatch = db.batch()
+    const batchDevoirs   = db.batch()
+    const batchControles = db.batch()
+    let ignoredCount = 0
+
     for (const hw of homeworkList) {
-      const description = String(hw.description || hw.content || hw.subject?.description || '')
-      const estimationMinutes = estimateMinutes(description)
-      const necessiteAvance = checkNecessiteAvance(description, estimationMinutes)
+      const rawDesc   = String(hw.description || hw.content || hw.subject?.description || '')
+      const description = stripHtml(rawDesc).slice(0, 500)
+      const matiere   = hw.subject?.name || hw.subject || ''
+      const dateLimite = toDateStr(hw.deadline || hw.date || hw.dueDate || today)
       const id = `pronote_hw_${sanitizeId(hw.id || hw.subjectId || String(Math.random()))}`
 
-      const ref = db.collection(`users/${userId}/devoirs`).doc(id)
-      insertBatch.set(ref, {
-        id,
-        matiere: hw.subject?.name || hw.subject || '',
-        description: description.slice(0, 500), // Limiter la longueur
-        dateLimite: toDateStr(hw.deadline || hw.date || hw.dueDate || today),
-        estimationMinutes,
-        necessiteAvance,
-        fait: false,
-        source: 'pronote',
-        syncedAt: new Date().toISOString(),
-      })
-      devoirsCount++
+      const kind = classifyHomework(description)
+
+      if (kind === 'ignorer') {
+        ignoredCount++
+        console.log(`[Pronote] Ignoré (logistique) : "${description.slice(0, 60)}"`)
+        continue
+      }
+
+      if (kind === 'controle') {
+        // → section Contrôles
+        const { type, intensite, joursAvance, necessiteAvance } = autoIntensity(description)
+        const ref = db.collection(`users/${userId}/controles`).doc(id)
+        batchControles.set(ref, {
+          id,
+          matiere,
+          titre: description.slice(0, 120) || 'Évaluation',
+          date: dateLimite,
+          type,
+          intensite,
+          joursAvance,
+          necessiteAvance,
+          source: 'pronote_hw',
+          couleur: '',
+          sessions: [],
+          syncedAt: new Date().toISOString(),
+        })
+        controlesCount++
+      } else {
+        // → section Devoirs
+        const estimationMinutes = estimateMinutes(description)
+        const necessiteAvance   = checkNecessiteAvance(description, estimationMinutes)
+        const ref = db.collection(`users/${userId}/devoirs`).doc(id)
+        batchDevoirs.set(ref, {
+          id,
+          matiere,
+          description,
+          dateLimite,
+          estimationMinutes,
+          necessiteAvance,
+          fait: false,
+          source: 'pronote',
+          syncedAt: new Date().toISOString(),
+        })
+        devoirsCount++
+      }
     }
-    if (devoirsCount > 0) await insertBatch.commit()
+
+    if (devoirsCount > 0)   await batchDevoirs.commit()
+    if (controlesCount > 0) await batchControles.commit()
+    console.log(`[Pronote] Devoirs: ${devoirsCount} sauvés, ${ignoredCount} ignorés, ${controlesCount} reclassés en contrôles`)
 
   } catch (err) {
     console.warn(`[Pronote] Devoirs non récupérés : ${err.message}`)
+    if (err.stack) console.warn(err.stack)
   }
 
   // ── Synchronisation des contrôles/évaluations ────────────
@@ -426,6 +480,69 @@ function sanitizeId(str) {
   return String(str).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 60)
 }
 
+// ── Strip HTML + décode entités HTML ─────────────────────────
+function stripHtml(str) {
+  if (!str) return ''
+  return str
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&[a-z]+;/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// ── Classification devoir / contrôle / ignorer ───────────────
+function classifyHomework(description) {
+  const d = description.toLowerCase()
+
+  // Priorité 1 : c'est un contrôle/évaluation
+  if (MOTS_CONTROLE.some(mot => d.includes(mot))) return 'controle'
+
+  // Priorité 2 : purement logistique — retire les mots à ignorer
+  // et vérifie s'il reste du contenu substantiel
+  if (MOTS_IGNORER.some(mot => d.includes(mot))) {
+    let remaining = d
+    for (const mot of MOTS_IGNORER) {
+      remaining = remaining.split(mot).join(' ')
+    }
+    const leftover = remaining.split(/\s+/).filter(w => w.length > 3 && /[a-z]/.test(w))
+    if (leftover.length === 0) return 'ignorer'
+  }
+
+  return 'devoir'
+}
+
+// ── Intensité/joursAvance automatiques selon le type ─────────
+function autoIntensity(description) {
+  const d = description.toLowerCase()
+
+  if (d.includes('bac blanc') || d.includes('examen'))
+    return { type: 'ds',      intensite: 5, joursAvance: 14, necessiteAvance: true }
+
+  if (d.includes('oral') || d.includes('exposé') || d.includes('expose') ||
+      d.includes('présentation') || d.includes('presentation') || d.includes('soutenance'))
+    return { type: 'oral',    intensite: 4, joursAvance: 9,  necessiteAvance: true }
+
+  if (d.includes('contrôle') || d.includes('controle') || d.includes('ds') ||
+      d.includes('devoir surveillé') || d.includes('devoir surveille') ||
+      d.includes('interro') || d.includes('interrogation') ||
+      d.includes('évaluation') || d.includes('evaluation'))
+    return { type: 'controle', intensite: 3, joursAvance: 6,  necessiteAvance: false }
+
+  if (d.includes('qcm') || d.includes('test'))
+    return { type: 'controle', intensite: 2, joursAvance: 4,  necessiteAvance: false }
+
+  return   { type: 'controle', intensite: 2, joursAvance: 4,  necessiteAvance: false }
+}
+
 function estimateMinutes(description) {
   if (!description) return 20
   const words = description.trim().split(/\s+/).length
@@ -435,7 +552,8 @@ function estimateMinutes(description) {
 function checkNecessiteAvance(description, estimationMinutes) {
   if (estimationMinutes > 45) return true
   const d = description.toLowerCase()
-  return MOTS_AVANCE.some(mot => d.includes(mot))
+  return ['dossier', 'exposé', 'oral', 'dm', 'devoir maison', 'recherche', 'fiche', 'présentation']
+    .some(mot => d.includes(mot))
 }
 
 function detectType(title) {
