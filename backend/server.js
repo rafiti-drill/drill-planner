@@ -16,6 +16,7 @@ import admin from 'firebase-admin'
 import { readFileSync, existsSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { randomUUID } from 'crypto'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const PORT = process.env.PORT || 3001
@@ -84,33 +85,42 @@ app.post('/api/pronote/login', async (req, res) => {
         })
       }
 
-      const { createSessionHandle, loginQrCode, account } = await import('pawnote')
-      const handle = createSessionHandle()
+      // Nettoyer l'URL : s'assurer qu'elle contient bien mobile.eleve.html
+      // (pawnote en a besoin pour déterminer le type de compte)
+      const qrUrl = ensureQrUrl(qrData.url)
+      console.log(`[QR Login] URL QR reçue : ${qrData.url}`)
+      console.log(`[QR Login] URL QR normalisée : ${qrUrl}`)
 
-      await loginQrCode(handle, {
+      const { createSessionHandle, loginQrCode } = await import('pawnote')
+      const handle = createSessionHandle()
+      const deviceUUID = randomUUID()
+
+      // loginQrCode retourne RefreshInformation: { url, token, username, kind, navigatorIdentifier }
+      const refreshInfo = await loginQrCode(handle, {
         qr: {
-          url: qrData.url,
+          url: qrUrl,
           login: qrData.login,
           jeton: qrData.jeton,
         },
         pin: String(pin),
+        deviceUUID,
       })
 
-      // Récupérer les infos du compte
-      const accountInfo = await account(handle)
-      studentName = accountInfo?.studentName
+      // Le nom de l'élève est dans handle.user ou handle.userResource
+      studentName = handle.userResource?.name
         || handle.user?.name
-        || handle.information?.studentName
+        || refreshInfo.username
         || qrData.login
 
       // Stocker le token pour la reconnexion automatique (sans QR)
       sessionData = {
         loginMethod: 'token',
-        url: handle.information?.url || qrData.url,
-        username: handle.user?.username || qrData.login,
-        token: handle.user?.token || '',
-        deviceUUID: handle.user?.deviceUUID || '',
-        kind: 6, // AccountKind.STUDENT
+        url: refreshInfo.url,
+        username: refreshInfo.username,
+        token: refreshInfo.token,
+        deviceUUID,
+        navigatorIdentifier: refreshInfo.navigatorIdentifier || null,
+        kind: refreshInfo.kind,
         studentName,
         connectedAt: new Date().toISOString(),
         lastSync: null,
@@ -126,26 +136,29 @@ app.post('/api/pronote/login', async (req, res) => {
         })
       }
 
-      const { createSessionHandle, loginCredentials, account } = await import('pawnote')
+      const { createSessionHandle, loginCredentials } = await import('pawnote')
       const handle = createSessionHandle()
+      const deviceUUID = randomUUID()
 
-      await loginCredentials(handle, {
+      // loginCredentials retourne aussi RefreshInformation
+      const refreshInfo = await loginCredentials(handle, {
         url: normalizeUrl(url),
         username,
         password,
         kind: 6, // AccountKind.STUDENT
+        deviceUUID,
       })
 
-      const accountInfo = await account(handle)
-      studentName = accountInfo?.studentName || handle.user?.name || username
+      studentName = handle.userResource?.name || handle.user?.name || username
 
       sessionData = {
         loginMethod: 'token',
-        url: normalizeUrl(url),
-        username,
-        token: handle.user?.token || '',
-        deviceUUID: handle.user?.deviceUUID || '',
-        kind: 6,
+        url: refreshInfo.url,
+        username: refreshInfo.username || username,
+        token: refreshInfo.token,
+        deviceUUID,
+        navigatorIdentifier: refreshInfo.navigatorIdentifier || null,
+        kind: refreshInfo.kind,
         studentName,
         connectedAt: new Date().toISOString(),
         lastSync: null,
@@ -157,10 +170,11 @@ app.post('/api/pronote/login', async (req, res) => {
     res.json({ success: true, studentName })
 
   } catch (err) {
-    console.error('[Pronote] Erreur de connexion:', err.message)
+    console.error(`[Pronote] Erreur de connexion [${err.name}]: ${err.message}`)
+    if (err.stack) console.error('[Pronote] Stack:', err.stack)
     res.status(401).json({
       success: false,
-      error: `Connexion Pronote échouée : ${err.message}`
+      error: `[${err.name}] ${err.message}`
     })
   }
 })
@@ -179,28 +193,32 @@ app.get('/api/pronote/sync', async (req, res) => {
     console.log(`✅ Sync OK pour userId=${userId}: ${result.devoirs} devoirs, ${result.controles} contrôles`)
     res.json({ success: true, ...result })
   } catch (err) {
-    console.error(`[Pronote] Erreur de sync pour userId=${userId}:`, err.message)
+    console.error(`[Pronote] Erreur de sync [${err.name}] pour userId=${userId}: ${err.message}`)
+    if (err.stack) console.error('[Pronote] Stack:', err.stack)
     res.status(500).json({
       success: false,
-      error: `Synchronisation échouée : ${err.message}`
+      error: `[${err.name}] ${err.message}`
     })
   }
 })
 
 // ── Reconnexion pawnote via token stocké ─────────────────────
+// Retourne { handle, newToken } — newToken est non-null si le token a été renouvelé
 async function reconnectPronote(sessionData) {
   const { createSessionHandle, loginToken } = await import('pawnote')
   const handle = createSessionHandle()
 
-  await loginToken(handle, {
+  const refreshInfo = await loginToken(handle, {
     url: sessionData.url,
     username: sessionData.username,
     token: sessionData.token,
     deviceUUID: sessionData.deviceUUID,
     kind: sessionData.kind ?? 6,
+    navigatorIdentifier: sessionData.navigatorIdentifier || undefined,
   })
 
-  return handle
+  const newToken = refreshInfo.token !== sessionData.token ? refreshInfo.token : null
+  return { handle, newToken }
 }
 
 // ── Fonction principale de synchronisation ───────────────────
@@ -216,7 +234,11 @@ async function syncPronote(userId) {
     throw new Error('Token de session manquant. Reconnectez-vous depuis la page Pronote.')
   }
 
-  const handle = await reconnectPronote(sessionData)
+  const { handle, newToken } = await reconnectPronote(sessionData)
+  if (newToken) {
+    await db.collection('pronote').doc(userId).update({ token: newToken })
+    console.log(`[Pronote] Token renouvelé pour userId=${userId}`)
+  }
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -364,6 +386,17 @@ function normalizeUrl(url) {
   if (!u.endsWith('/')) u += '/'
   if (!u.startsWith('http')) u = 'https://' + u
   return u
+}
+
+// Garantit que l'URL du QR code contient bien mobile.eleve.html
+// (pawnote l'utilise pour déterminer le type de compte)
+function ensureQrUrl(url) {
+  let u = (url || '').trim()
+  if (!u.startsWith('http')) u = 'https://' + u
+  // Si l'URL contient déjà mobile.xxx.html, on la garde telle quelle
+  if (/\/mobile\.\w+\.html$/.test(u)) return u
+  // Sinon on enlève le slash final et on ajoute mobile.eleve.html
+  return u.replace(/\/$/, '') + '/mobile.eleve.html'
 }
 
 function sanitizeId(str) {
